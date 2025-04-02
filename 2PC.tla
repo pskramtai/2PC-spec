@@ -55,6 +55,13 @@ TypeOK ==
 
 ---------    
 
+TryCompleteVotingPhase ==
+    /\ votingPhaseComplete = FALSE
+    /\ \A s \in Sites: receivedVotingResponses[s] # "Waiting"
+    /\ votingPhaseComplete' = TRUE
+    /\ UNCHANGED <<sentVotingRequests, receivedVotingRequests, sentVotingResponses, commitPhaseComplete, receivedVotingResponses, coordinatorStatus, siteStatuses, sentCommitDecisions, receivedCommitDecisions, coordinatorStatus, siteStatuses, sentAcks, receivedAcks, transactionStatus, siteTimeouts>>
+
+
 SendRequest(s) ==
     /\ votingPhaseComplete = FALSE
     /\ coordinatorStatus = TRUE
@@ -99,6 +106,7 @@ ReceiveResponse(s) ==
     /\ sentVotingResponses[s] # "Waiting"
     /\ receivedVotingResponses[s] = "Waiting"
     /\ receivedVotingResponses' = [receivedVotingResponses EXCEPT ![s] = sentVotingResponses[s]]
+    /\ TryCompleteVotingPhase
     /\ UNCHANGED <<sentVotingRequests, receivedVotingRequests, votingPhaseComplete, commitPhaseComplete, sentVotingResponses, sentCommitDecisions, receivedCommitDecisions, coordinatorStatus, siteStatuses, sentAcks, receivedAcks, transactionStatus, siteTimeouts>>
 
 SendCommitDecision(s, d) ==
@@ -212,11 +220,6 @@ CommitOrAbort ==
           /\ PropagateCommitOrAbort("Commit")
     /\ UNCHANGED <<sentVotingRequests, receivedVotingRequests, votingPhaseComplete, commitPhaseComplete, sentVotingResponses, receivedVotingResponses, transactionStatus, siteTimeouts>>
 
-CompleteVotingPhase ==
-    /\ votingPhaseComplete = FALSE
-    /\ \A s \in Sites: receivedVotingResponses[s] # "Waiting"
-    /\ votingPhaseComplete' = TRUE
-    /\ UNCHANGED <<sentVotingRequests, receivedVotingRequests, sentVotingResponses, commitPhaseComplete, receivedVotingResponses, coordinatorStatus, siteStatuses, sentCommitDecisions, receivedCommitDecisions, coordinatorStatus, siteStatuses, sentAcks, receivedAcks, transactionStatus, siteTimeouts>>
 
 CompleteCommitPhase ==
     /\ votingPhaseComplete = TRUE
@@ -272,7 +275,6 @@ Init ==
 
 Next ==
     \/ CollectVotes
-    \/ CompleteVotingPhase
     \/ FailCoordinator
     \/ RecoverCoordinator
     \/ \E s \in Sites:
@@ -310,6 +312,10 @@ TransactionAbortedIfAllCommitDecisionsAreAbort ==
     <>(\A s \in Sites: sentCommitDecisions[s] = "Abort") => 
         <> (transactionStatus = "Aborted")
 
+TransactionAbortedIfCoordinatorFailsBeforeReceivingAllVotes ==
+    <>(coordinatorStatus = FALSE /\ votingPhaseComplete = FALSE /\ \E s \in Sites: receivedVotingResponses[s] # "Yes") =>
+        <> (transactionStatus = "Aborted")
+
 TransactionCommitedIfAllCommitDecisionsAreCommit ==
     <>(\A s \in Sites: sentCommitDecisions[s] = "Commit") => 
         <> (transactionStatus = "Commited")
@@ -322,7 +328,7 @@ CommitDecisionsAreNotConflicting ==
 
 CommitDecisionsCorrespondToVotes ==
     \/ <>(\A s \in Sites: receivedVotingResponses[s] = "Yes") =>
-         <>(\E s \in Sites: sentCommitDecisions[s] = "Commit")
-    \/ <>(\A s \in Sites: receivedVotingResponses[s] # "Yes") =>
-         <>(\E s \in Sites: sentCommitDecisions[s] = "Abort")
+         <>(\A s \in Sites: sentCommitDecisions[s] = "Commit")
+    \/ <>(\E s \in Sites: receivedVotingResponses[s] # "Yes") =>
+         <>(\A s \in Sites: sentCommitDecisions[s] = "Abort")
 ====
