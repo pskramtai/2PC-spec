@@ -162,9 +162,22 @@ RecoverCoordinator ==
                        /\ sentAcks' = sentAcks \cup {s}
                        /\ receivedAcks' = receivedAcks \cup {s}
                 /\ UNCHANGED <<sentVotingRequests, receivedVotingRequests, sentVotingResponses, receivedVotingResponses, votingPhaseComplete, commitPhaseComplete, siteStatuses, siteStatuses, transactionStatus, siteTimeouts>>
-             \/ /\ \A s \in Sites: receivedCommitDecisions[s] # "Waiting"
+             \/ /\ \A s \in Sites: 
+                    /\ receivedCommitDecisions[s] # "Waiting"
+                    /\ s \in receivedAcks
                 /\ commitPhaseComplete' = TRUE
                 /\ UNCHANGED <<sentVotingRequests, receivedVotingRequests, sentVotingResponses, receivedVotingResponses, votingPhaseComplete, siteStatuses, sentCommitDecisions, receivedCommitDecisions, siteStatuses, sentAcks, receivedAcks, transactionStatus, siteTimeouts>>
+             \/ /\ \A s \in Sites: 
+                    /\ receivedCommitDecisions[s] # "Waiting"
+                /\ \E s \in Sites:
+                    \/ s \notin sentAcks
+                    \/ s \notin receivedAcks
+                /\ LET s == CHOOSE t \in Sites: 
+                    \/ t \notin sentAcks
+                    \/ t \notin receivedAcks
+                    IN /\ sentAcks' = sentAcks \cup {s}
+                       /\ receivedAcks' = receivedAcks \cup {s} 
+                /\ UNCHANGED <<sentVotingRequests, receivedVotingRequests, sentVotingResponses, receivedVotingResponses, votingPhaseComplete, commitPhaseComplete, siteStatuses, sentCommitDecisions, receivedCommitDecisions, siteStatuses, transactionStatus, siteTimeouts>>   
 
 FailSite(s) ==
     /\ commitPhaseComplete = FALSE
@@ -192,9 +205,11 @@ RecoverSite(s) ==
                 /\ \/ /\ \E t \in Sites: receivedVotingResponses[t] # "Yes"
                       /\ sentCommitDecisions' = [sentCommitDecisions EXCEPT ![s] = "Abort"]
                       /\ receivedCommitDecisions' = [receivedCommitDecisions EXCEPT ![s] = "Abort"]
+                      /\ UNCHANGED <<receivedVotingRequests, sentVotingRequests, sentVotingResponses, commitPhaseComplete, votingPhaseComplete, receivedVotingResponses, coordinatorStatus, transactionStatus, siteTimeouts>>
                    \/ /\ \A t \in Sites: receivedVotingResponses[t] = "Yes"
                       /\ sentCommitDecisions' = [sentCommitDecisions EXCEPT ![s] = "Commit"]
-                      /\ receivedCommitDecisions' = [receivedCommitDecisions EXCEPT ![s] = "Commit"]   
+                      /\ receivedCommitDecisions' = [receivedCommitDecisions EXCEPT ![s] = "Commit"]  
+                      /\ UNCHANGED <<receivedVotingRequests, sentVotingRequests, sentVotingResponses, commitPhaseComplete, votingPhaseComplete, receivedVotingResponses, coordinatorStatus, transactionStatus, siteTimeouts>>
              \/ /\ sentCommitDecisions[s] # "Waiting"
                 /\ receivedCommitDecisions' = [receivedCommitDecisions EXCEPT ![s] = sentCommitDecisions[s]]   
           /\ sentAcks' = sentAcks \cup {s}
@@ -289,14 +304,6 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
 ---------
 
-\* Invariants
-
-SiteReceivedRequestSetIsASubsetOfSentRequestSet ==
-    receivedVotingRequests \subseteq sentVotingRequests
-
-ReceivedAckSetIsASubsetOfSentAckSet ==
-    receivedAcks \subseteq sentAcks
-
 \* Properties
 
 EventuallyVotingPhaseCompletes ==
@@ -331,4 +338,20 @@ CommitDecisionsCorrespondToVotes ==
          <>(\A s \in Sites: sentCommitDecisions[s] = "Commit")
     \/ <>(\E s \in Sites: receivedVotingResponses[s] # "Yes") =>
          <>(\A s \in Sites: sentCommitDecisions[s] = "Abort")
+
+\* Invariants
+
+SiteReceivedRequestSetIsASubsetOfSentRequestSet ==
+    receivedVotingRequests \subseteq sentVotingRequests
+
+ReceivedAckSetIsASubsetOfSentAckSet ==
+    receivedAcks \subseteq sentAcks
+
+CommitActionDecided ==
+    commitPhaseComplete =>
+        /\ sentAcks = Sites
+        /\ receivedAcks = Sites
+        /\ \/ \A s \in Sites : receivedCommitDecisions[s] = "Commit"
+           \/ \A s \in Sites : receivedCommitDecisions[s] = "Abort"
+
 ====

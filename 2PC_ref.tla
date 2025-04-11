@@ -35,5 +35,6 @@ Abs == INSTANCE 2PC_abs
 Refinement == Abs!Spec
 
 THEOREM Spec => Refinement
+PROOF OBVIOUS 
 
 ====
